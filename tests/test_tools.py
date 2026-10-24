@@ -46,3 +46,33 @@ def test_default_question_of_lecture1_is_answerable_from_glossary():
     assert "3レベル" in DEFAULT_QUESTION
     hits = json.loads(tools.search_glossary("3レベル"))
     assert hits[0]["term"] == "宿題の3レベル"
+
+
+def test_ask_prints_input_and_output_token_counts(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    from app import ask as ask_module
+
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(prompt_token_count=12, candidates_token_count=34),
+        text="answer",
+    )
+
+    def generate_content(model, contents):
+        assert model == ask_module.MODEL
+        assert contents == "question"
+        return response
+
+    def create_client(api_key):
+        assert api_key == "test-key"
+        return SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+
+    monkeypatch.setattr(
+        ask_module.genai,
+        "Client",
+        create_client,
+    )
+    monkeypatch.setattr(ask_module, "get_api_key", lambda: "test-key")
+
+    assert ask_module.ask("question") == "answer"
+    assert "[usage] input: 12 tokens, output: 34 tokens" in capsys.readouterr().out
